@@ -1,0 +1,39 @@
+name: Wikipedia Top Pageviews
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '13 13 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Scrape data
+        run: |
+          curl "https://wikimedia.org/api/rest_v1/metrics/pageviews/top-per-country/US/all-access/$(date --date "-1 days" +%Y/%m/%d)" | jq -rc '.["items"][0]' >> pageviews.json
+
+      - name: Commit and Push Changes
+        run: |
+          git config user.email "david.lapaglia@colorado.edu"
+          git config user.name "Scraping script"
+          git pull --rebase
+          if [ -n "$(git status --porcelain)" ]; then
+            git add pageviews.json
+            git commit -m "New data: $(date --date "-1 days" +%Y-%m-%d)"
+            git push
+          else
+            echo "No changes to commit."
+          fi
