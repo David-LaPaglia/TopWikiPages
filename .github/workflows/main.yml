@@ -3,7 +3,7 @@ name: Wikipedia Top Pageviews
 on:
   workflow_dispatch:
   schedule:
-    - cron: '13 13 * * *'
+    - cron: '13 13 * * *' # Runs daily at 13:13 UTC
 
 permissions:
   contents: write
@@ -13,27 +13,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
-      
-      - name: Install dependencies
+
+      # Step 2: Install dependencies (jq for JSON parsing)
+      - name: Install jq
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
 
-      - name: Scrape data
+      # Step 3: Fetch Wikipedia top pageviews data
+      - name: Scrape Wikipedia data
         run: |
-          curl "https://wikimedia.org/api/rest_v1/metrics/pageviews/top-per-country/US/all-access/$(date --date "-1 days" +%Y/%m/%d)" | jq -rc '.["items"][0]' >> pageviews.json
+          # Construct the API URL for yesterday's date
+          DATE=$(date --date "-1 days" +%Y/%m/%d)
+          API_URL="https://wikimedia.org/api/rest_v1/metrics/pageviews/top-per-country/US/all-access/${DATE}"
+          
+          # Fetch data and save it to a JSON file
+          curl -s "${API_URL}" | jq '.' > pageviews.json
+          
+          # Print a message if the file is empty or invalid
+          if [ ! -s pageviews.json ]; then
+            echo "No data fetched for ${DATE}. Exiting."
+            exit 1
+          fi
 
+      # Step 4: Commit and push changes to the repository
       - name: Commit and Push Changes
         run: |
           git config user.email "david.lapaglia@colorado.edu"
-          git config user.name "Scraping script"
+          git config user.name "Scraping Script"
           git pull --rebase
+          
+          # Check for changes in the repository
           if [ -n "$(git status --porcelain)" ]; then
             git add pageviews.json
             git commit -m "New data: $(date --date "-1 days" +%Y-%m-%d)"
             git push
           else
             echo "No changes to commit."
-          fi
