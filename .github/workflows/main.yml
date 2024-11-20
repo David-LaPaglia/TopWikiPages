@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 2: Install dependencies (jq for JSON parsing)
+      # Step 2: Install jq
       - name: Install jq
         run: |
           sudo apt-get update
@@ -44,12 +44,21 @@ jobs:
         run: |
           git config user.email "david.lapaglia@colorado.edu"
           git config user.name "Scraping Script"
+
+          # Stash any unstaged changes to avoid rebase conflicts
+          git stash --include-untracked
+
+          # Pull latest changes with rebase
           git pull --rebase
-          
-          # Check for changes in the repository
+
+          # Apply the stashed changes back, if any
+          git stash pop || echo "No stashed changes to apply."
+
+          # Check for changes in the working directory
           if [ -n "$(git status --porcelain)" ]; then
             git add pageviews.json
             git commit -m "New data: $(date --date "-1 days" +%Y-%m-%d)"
             git push
           else
             echo "No changes to commit."
+          fi
