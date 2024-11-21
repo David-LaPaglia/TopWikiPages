@@ -29,15 +29,20 @@ jobs:
           # Construct the API URL for yesterday's date
           DATE=$(date --date "-1 days" +%Y/%m/%d)
           API_URL="https://wikimedia.org/api/rest_v1/metrics/pageviews/top-per-country/US/all-access/${DATE}"
-          
-          # Fetch data and save it to a JSON file
-          curl -s "${API_URL}" | jq '.' > pageviews.json
-          
-          # Print a message if the file is empty or invalid
-          if [ ! -s pageviews.json ]; then
-            echo "No data fetched for ${DATE}. Exiting."
-            exit 1
+
+          # Fetch data
+          DATA=$(curl -s "${API_URL}")
+
+          # Add a date key to the fetched data
+          echo "${DATA}" | jq --arg date "$(date --date "-1 days" +%Y-%m-%d)" '.date = $date' > pageviews.json
+
+          # If the timeline file doesn't exist, create it
+          if [ ! -f all_pageviews.json ]; then
+            echo "[]" > all_pageviews.json
           fi
+
+          # Append the new data to the timeline
+          jq '. + [input]' all_pageviews.json pageviews.json > tmp.json && mv tmp.json all_pageviews.json
 
       # Step 4: Commit and push changes to the repository
       - name: Commit and Push Changes
@@ -56,8 +61,8 @@ jobs:
 
           # Check for changes in the working directory
           if [ -n "$(git status --porcelain)" ]; then
-            git add pageviews.json
-            git commit -m "New data: $(date --date "-1 days" +%Y-%m-%d)"
+            git add all_pageviews.json
+            git commit -m "Appended data: $(date --date "-1 days" +%Y-%m-%d)"
             git push
           else
             echo "No changes to commit."
